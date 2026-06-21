@@ -7,6 +7,25 @@ import type { ArbitrageOpportunity, PricesResponse, TokenPrice } from '@/types';
 
 const SPREAD_THRESHOLD = 0.3;
 
+const NUMERIC_RE = /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/;
+
+function reviveNumbers(value: unknown): unknown {
+  if (typeof value === 'string' && NUMERIC_RE.test(value)) {
+    return Number(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map(reviveNumbers);
+  }
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const key in value as Record<string, unknown>) {
+      out[key] = reviveNumbers((value as Record<string, unknown>)[key]);
+    }
+    return out;
+  }
+  return value;
+}
+
 function computeArbitrage(tokens: TokenPrice[], timestamp: number): ArbitrageOpportunity[] {
   const opportunities: ArbitrageOpportunity[] = [];
 
@@ -66,7 +85,7 @@ export default function Home() {
     try {
       const res = await fetch('/api/prices');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json: PricesResponse = await res.json();
+      const json = reviveNumbers(await res.json()) as PricesResponse;
       setData(json);
       setConnected(true);
       setError(null);

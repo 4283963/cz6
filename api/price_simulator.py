@@ -1,8 +1,9 @@
 import asyncio
+import math
 import random
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List
+from typing import Any, Dict, List
 
 
 TOKENS = [
@@ -85,6 +86,22 @@ def init_tokens():
         )
 
 
+def _to_safe_strings(obj: Any) -> Any:
+    if isinstance(obj, bool):
+        return obj
+    if isinstance(obj, int):
+        return str(obj)
+    if isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return "0"
+        return str(obj)
+    if isinstance(obj, dict):
+        return {key: _to_safe_strings(value) for key, value in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_to_safe_strings(item) for item in obj]
+    return obj
+
+
 def get_all_prices():
     result = []
     for symbol, state in token_states.items():
@@ -105,10 +122,10 @@ def get_all_prices():
             "change24h": state.change24h,
             "priceHistory": state.price_history.copy(),
         })
-    return {
+    return _to_safe_strings({
         "timestamp": int(time.time() * 1000),
         "tokens": result,
-    }
+    })
 
 
 def get_tokens_list():
