@@ -3,7 +3,7 @@ import { AlertTriangle, Loader2 } from 'lucide-react';
 import Header from '@/components/Header';
 import TokenCard from '@/components/TokenCard';
 import ArbitrageCard from '@/components/ArbitrageCard';
-import type { ArbitrageOpportunity, PricesResponse, TokenPrice } from '@/types';
+import type { ArbitrageOpportunity, PoolAnalysis, PricesResponse, TokenPrice } from '@/types';
 
 const SPREAD_THRESHOLD = 0.3;
 
@@ -32,6 +32,14 @@ function computeArbitrage(tokens: TokenPrice[], timestamp: number): ArbitrageOpp
   for (const token of tokens) {
     if (token.pools.length < 2) continue;
 
+    const analysisMap = new Map<string, PoolAnalysis>();
+    if (token.analysis) {
+      for (const a of token.analysis) {
+        const key = [a.poolA, a.poolB].sort().join('|');
+        analysisMap.set(key, a);
+      }
+    }
+
     for (let i = 0; i < token.pools.length; i++) {
       for (let j = i + 1; j < token.pools.length; j++) {
         const poolA = token.pools[i];
@@ -54,6 +62,9 @@ function computeArbitrage(tokens: TokenPrice[], timestamp: number): ArbitrageOpp
           const proceeds = tokensBought * sellPool.price;
           const profit = proceeds - tradeAmount;
 
+          const key = [poolA.pool, poolB.pool].sort().join('|');
+          const analysis = analysisMap.get(key);
+
           opportunities.push({
             id: `${token.symbol}-${buyPool.pool}-${sellPool.pool}-${timestamp}`,
             token: token.symbol,
@@ -65,6 +76,9 @@ function computeArbitrage(tokens: TokenPrice[], timestamp: number): ArbitrageOpp
             spreadPercent: spread,
             estimatedProfit: profit,
             timestamp,
+            estimatedLifetime: analysis?.estimatedLifetime ?? '未知',
+            opportunityType: analysis?.opportunityType ?? '普通机会',
+            confidence: analysis?.confidence ?? 0.5,
           });
         }
       }

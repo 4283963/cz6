@@ -25,6 +25,7 @@ POOLS = [
 ]
 
 HISTORY_LENGTH = 30
+LONG_HISTORY_LENGTH = 60
 
 
 @dataclass
@@ -45,9 +46,11 @@ class TokenState:
         self.current_price = self.base_price
         self._start_price = self.base_price
         self.price_history = [self.base_price] * HISTORY_LENGTH
+        self.pool_price_history: Dict[str, List[float]] = {}
         for pool_info in POOLS:
             pool = pool_info["pool"]
             self.pool_prices[pool] = self.base_price
+            self.pool_price_history[pool] = [self.base_price] * LONG_HISTORY_LENGTH
             self.pool_liquidity[pool] = random.uniform(50000, 5000000)
 
     def update(self):
@@ -68,7 +71,11 @@ class TokenState:
             pool = pool_info["pool"]
             pool_spread = pool_info["spread"]
             extra_noise = random.uniform(-1, 1) * pool_spread * 3
-            self.pool_prices[pool] = new_price * (1 + extra_noise)
+            pool_price = new_price * (1 + extra_noise)
+            self.pool_prices[pool] = pool_price
+            self.pool_price_history[pool].append(pool_price)
+            if len(self.pool_price_history[pool]) > LONG_HISTORY_LENGTH:
+                self.pool_price_history[pool].pop(0)
             self.pool_liquidity[pool] *= random.uniform(0.995, 1.005)
 
 
@@ -102,6 +109,95 @@ def _to_safe_strings(obj: Any) -> Any:
     return obj
 
 
+def _analyze_pair(buy_history: List[float], sell_history: List[float], current_spread: float) -> Dict[str, Any]:
+    n = len(buy_history)
+    spreads = []
+    for i in range(n):
+        b = buy_history[i]
+        s = sell_history[i]
+        if b <= 0 or s <= 0:
+            continue
+        low = min(b, s)
+        high = max(b, s)
+        spreads.append(((high - low) / low) * 100)
+
+    if not spreads:
+        return {
+            "estimatedLifetime": "未知",
+            "opportunityType": "普通机会",
+            "confidence": 0.5,
+            "spreadAvg": 0.0,
+            "spreadStd": 0.0,
+        }
+
+    avg_spread = sum(spreads) / len(spreads)
+    variance = sum((s - avg_spread) ** 2 for s in spreads) / len(spreads)
+    std_spread = math.sqrt(variance)
+
+    volatility = (std_spread / avg_spread) if avg_spread > 0 else 0
+
+    above_threshold_count = sum(1 for s in spreads if s >= current_spread)
+    persistence = above_threshold_count / len(spreads)
+
+    anomaly_ratio = (current_spread / avg_spread) if avg_spread > 0 else 1.0
+
+    if volatility > 1.5 or anomaly_ratio > 3:
+        lifetime = "秒级消失"
+    elif volatility > 0.8:
+        lifetime = "分钟级"
+    else:
+        lifetime = "较持久"
+
+    if anomaly_ratio > 2.5 and persistence < 0.2 and volatility < 2:
+        opp_type = "黄金机会"
+    elif anomaly_ratio > 1.5 and persistence < 0.4:
+        opp_type = "普通机会"
+    elif volatility > 2 and persistence < 0.15:
+        opp_type = "诱多陷阱"
+    elif persistence > 0.6:
+        opp_type = "常态差异"
+    else:
+        opp_type = "普通机会"
+
+    confidence = min(1.0, max(0.2, 1.0 - volatility * 0.3))
+
+    return {
+        "estimatedLifetime": lifetime,
+        "opportunityType": opp_type,
+        "confidence": confidence,
+        "spreadAvg": avg_spread,
+        "spreadStd": std_spread,
+        "persistence": persistence,
+        "anomalyRatio": anomaly_ratio,
+    }
+
+
+def _build_analysis(state: TokenState) -> List[Dict[str, Any]]:
+    analysis_list = []
+    pool_names = [p["pool"] for p in POOLS]
+    for i in range(len(pool_names)):
+        for j in range(i + 1, len(pool_names)):
+            pool_a = pool_names[i]
+            pool_b = pool_names[j]
+            hist_a = state.pool_price_history.get(pool_a, [])
+            hist_b = state.pool_price_history.get(pool_b, [])
+            price_a = state.pool_prices.get(pool_a, 0)
+            price_b = state.pool_prices.get(pool_b, 0)
+            if price_a <= 0 or price_b <= 0:
+                continue
+            low = min(price_a, price_b)
+            high = max(price_a, price_b)
+            current_spread = ((high - low) / low) * 100
+            analysis = _analyze_pair(hist_a, hist_b, current_spread)
+            analysis_list.append({
+                "poolA": pool_a,
+                "poolB": pool_b,
+                "currentSpread": current_spread,
+                **analysis,
+            })
+    return analysis_list
+
+
 def get_all_prices():
     result = []
     for symbol, state in token_states.items():
@@ -121,6 +217,7 @@ def get_all_prices():
             "pools": pools,
             "change24h": state.change24h,
             "priceHistory": state.price_history.copy(),
+            "analysis": _build_analysis(state),
         })
     return _to_safe_strings({
         "timestamp": int(time.time() * 1000),

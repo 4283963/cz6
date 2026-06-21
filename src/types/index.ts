@@ -5,6 +5,19 @@ export interface PoolPrice {
   liquidity: number;
 }
 
+export interface PoolAnalysis {
+  poolA: string;
+  poolB: string;
+  currentSpread: number;
+  estimatedLifetime: string;
+  opportunityType: string;
+  confidence: number;
+  spreadAvg: number;
+  spreadStd: number;
+  persistence: number;
+  anomalyRatio: number;
+}
+
 export interface TokenPrice {
   symbol: string;
   name: string;
@@ -12,6 +25,7 @@ export interface TokenPrice {
   pools: PoolPrice[];
   change24h: number;
   priceHistory: number[];
+  analysis: PoolAnalysis[];
 }
 
 export interface PricesResponse {
@@ -30,4 +44,7 @@ export interface ArbitrageOpportunity {
   spreadPercent: number;
   estimatedProfit: number;
   timestamp: number;
+  estimatedLifetime: string;
+  opportunityType: string;
+  confidence: number;
 }

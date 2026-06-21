@@ -1,4 +1,4 @@
-import { ArrowRight, Zap, TrendingUp } from 'lucide-react';
+import { ArrowRight, Zap, TrendingUp, Clock, Shield, AlertTriangle } from 'lucide-react';
 import type { ArbitrageOpportunity } from '@/types';
 import { formatPrice, formatPercent, formatTime } from '@/utils/format';
 
@@ -6,7 +6,60 @@ interface ArbitrageCardProps {
   opp: ArbitrageOpportunity;
 }
 
+function getOpportunityStyle(type: string) {
+  switch (type) {
+    case '黄金机会':
+      return {
+        bg: 'bg-neon-green/15',
+        text: 'text-neon-green',
+        glow: 'text-glow-green',
+        border: 'border-neon-green/30',
+        icon: <Zap size={12} />,
+      };
+    case '诱多陷阱':
+      return {
+        bg: 'bg-neon-red/15',
+        text: 'text-neon-red',
+        glow: 'text-glow-red',
+        border: 'border-neon-red/30',
+        icon: <AlertTriangle size={12} />,
+      };
+    case '常态差异':
+      return {
+        bg: 'bg-white/10',
+        text: 'text-white/60',
+        glow: '',
+        border: 'border-white/10',
+        icon: <Shield size={12} />,
+      };
+    default:
+      return {
+        bg: 'bg-neon-purple/15',
+        text: 'text-neon-purple',
+        glow: 'text-glow-purple',
+        border: 'border-neon-purple/30',
+        icon: <TrendingUp size={12} />,
+      };
+  }
+}
+
+function getLifetimeStyle(lifetime: string) {
+  switch (lifetime) {
+    case '秒级消失':
+      return 'text-neon-red text-glow-red';
+    case '分钟级':
+      return 'text-neon-gold text-glow-gold';
+    case '较持久':
+      return 'text-neon-green text-glow-green';
+    default:
+      return 'text-white/50';
+  }
+}
+
 export default function ArbitrageCard({ opp }: ArbitrageCardProps) {
+  const oppStyle = getOpportunityStyle(opp.opportunityType);
+  const lifetimeStyle = getLifetimeStyle(opp.estimatedLifetime);
+
   return (
     <div className="arbitrage-border glass-card-strong rounded-xl p-5 shadow-neon-gold relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-r from-neon-gold/5 to-transparent pointer-events-none" />
@@ -31,7 +84,7 @@ export default function ArbitrageCard({ opp }: ArbitrageCardProps) {
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-2 rounded-xl bg-bg-tertiary/80 px-4 py-3 border border-white/5">
+        <div className="flex items-center justify-between gap-2 rounded-xl bg-bg-tertiary/80 px-4 py-3 border border-white/5 mb-4">
           <div className="flex-1">
             <p className="text-[10px] text-neon-green uppercase tracking-wider mb-0.5">买入 · {opp.buyPool}</p>
             <p className="font-mono text-lg font-bold text-neon-green">${formatPrice(opp.buyPrice)}</p>
@@ -45,7 +98,24 @@ export default function ArbitrageCard({ opp }: ArbitrageCardProps) {
           </div>
         </div>
 
-        <div className="mt-4 flex items-center justify-between">
+        <div className="flex flex-wrap gap-2 mb-4">
+          <span
+            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${oppStyle.bg} ${oppStyle.text} ${oppStyle.glow} ${oppStyle.border}`}
+          >
+            {oppStyle.icon}
+            {opp.opportunityType}
+          </span>
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-white/5 border border-white/10 text-white/70">
+            <Clock size={12} />
+            <span className={lifetimeStyle}>{opp.estimatedLifetime}</span>
+          </span>
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-white/5 border border-white/10 text-white/70">
+            <Shield size={12} />
+            可信度 {(opp.confidence * 100).toFixed(0)}%
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <TrendingUp className="text-neon-gold" size={14} />
             <span className="text-xs text-white/60">预估利润 (以 1000 USDC 计)</span>
